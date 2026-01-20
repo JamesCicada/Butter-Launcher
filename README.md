@@ -29,6 +29,12 @@
 
 Created after the game's release in early 2026, Butter Launcher aims to provide features that the official launcher lacks, giving power back to the players. We prioritize performance and flexibility.
 
+## 📸 Screenshots
+
+<p align="center">
+  <img src="https://butterlauncher.tech/media/launcher.png" alt="Butter Launcher Main Interface" width="100%">
+</p>
+
 ### Key Features
 
 * **⚡ Multiple Instances:** Keep your versions, pre-release versions, and soon server-specific clients completely separate!
