@@ -10,6 +10,7 @@ import DragBar from "./DragBar";
 import ProgressBar from "./ProgressBar";
 import { IconChevronDown, IconX } from "@tabler/icons-react";
 import cn from "../utils/cn";
+import ConfirmModal from "./ConfirmModal";
 
 type NewsItem = {
   title: string;
@@ -34,6 +35,7 @@ const Launcher: React.FC<{ onLogout?: () => void }> = ({ onLogout }) => {
     setVersionType,
     availableVersions,
     selectedVersion,
+    setAvailableVersions,
     setSelectedVersion,
     updateAvailable,
     updateDismissed,
@@ -57,6 +59,10 @@ const Launcher: React.FC<{ onLogout?: () => void }> = ({ onLogout }) => {
   const [onlinePatchEnabled, setOnlinePatchEnabled] = useState(false);
   const [needsFixClient, setNeedsFixClient] = useState(false);
   const [patchOutdated, setPatchOutdated] = useState(false);
+  const [deleteConfirmOpen, setDeleteConfirmOpen] = useState(false);
+  const [versionToDelete, setVersionToDelete] = useState<GameVersion | null>(
+    null,
+  );
 
   const currentInstalledSorted = availableVersions
     .filter((v) => v.installed)
@@ -273,6 +279,11 @@ const Launcher: React.FC<{ onLogout?: () => void }> = ({ onLogout }) => {
     window.ipcRenderer.send("online-patch:fix-client", gameDir, selected);
   };
 
+  const deleteVersion = async (v: GameVersion) => {
+    setVersionToDelete(v);
+    setDeleteConfirmOpen(true);
+  };
+
   return (
     <div
       className="w-full h-full min-h-screen flex flex-col justify-between relative"
@@ -312,9 +323,10 @@ const Launcher: React.FC<{ onLogout?: () => void }> = ({ onLogout }) => {
 
         <div
           className={cn(
-            "mt-2 max-h-0 opacity-0 -translate-y-1 pointer-events-none rounded-xl border border-white/10 bg-black/45 backdrop-blur-md shadow-xl overflow-hidden transition-all duration-300",
+            "mt-2 max-h-0 opacity-0 -translate-y-1 rounded-xl border border-white/10 bg-black/45 backdrop-blur-md shadow-xl overflow-hidden transition-all duration-300",
+            !versionsOpen && "pointer-events-none",
             versionsOpen &&
-              "max-h-[220px] opacity-100 translate-y-0 animate-popIn animate-softGlow",
+              "max-h-[340px] opacity-100 translate-y-0 animate-popIn animate-softGlow",
           )}
         >
           <div className="p-3">
@@ -352,40 +364,60 @@ const Launcher: React.FC<{ onLogout?: () => void }> = ({ onLogout }) => {
             <label className="block text-[11px] text-gray-200/80 mb-1">
               Select build
             </label>
-            <div className="relative">
-              <select
-                className="w-full text-xs bg-[#23293a]/80 text-white rounded-lg px-2 py-2 pr-8 outline-none border border-white/10 focus:border-blue-300/60 transition appearance-none cursor-pointer"
-                value={availableVersions.length ? String(selectedVersion) : ""}
-                onChange={(e) => {
-                  restoreUpdatePrompt();
-                  setSelectedVersion(parseInt(e.target.value, 10));
-                }}
-              >
-                {!availableVersions.length ? (
-                  <option value="" disabled>
-                    Loading...
-                  </option>
-                ) : null}
-
-                {availableVersions.map((v, idx) => {
+            <div
+              className="max-h-[220px] overflow-y-auto pr-2"
+              style={{
+                scrollbarWidth: "thin",
+                scrollbarColor: "rgba(59, 130, 246, 0.7) rgba(31, 32, 35, 0.5)",
+              }}
+            >
+              {availableVersions.length === 0 ? (
+                <div className="text-gray-400 text-xs p-2">Loading...</div>
+              ) : (
+                availableVersions.map((v, idx) => {
                   const name = v.build_name?.trim() || `Build-${v.build_index}`;
-                  const suffix = `${v.installed ? " • installed" : ""}${
-                    v.isLatest && v.type === "release" ? " • latest" : ""
-                  }`;
+                  const suffix = v.isLatest && v.type !== "pre-release" ? " • latest" : "";
+                  const isSelected = selectedVersion === idx;
+
                   return (
-                    <option
+                    <div
                       key={`${v.type}:${v.build_index}`}
-                      value={String(idx)}
+                      className={cn(
+                        "flex items-center justify-between p-2 rounded-md mb-1 cursor-pointer transition",
+                        isSelected
+                          ? "bg-blue-600/40 text-white"
+                          : "text-gray-200 hover:text-white hover:bg-white/10",
+                      )}
                     >
-                      {name}
-                      {suffix}
-                    </option>
+                      <span
+                        className="flex-1 text-xs truncate"
+                        onClick={() => {
+                          restoreUpdatePrompt();
+                          setSelectedVersion(idx);
+                          setVersionsOpen((v) => !v)
+                        }}
+                      >
+                        {name}
+                        {suffix}
+                      </span>
+
+                      {v.installed && (
+                        <button
+                          type="button"
+                          className="ml-2 text-xs text-red-400 hover:text-red-300 cursor-pointer"
+                          onClick={(e) => {
+                            e.stopPropagation();
+                            void deleteVersion(v);
+                          }}
+                          title={`Delete ${name}`}
+                        >
+                          Delete
+                        </button>
+                      )}
+                    </div>
                   );
-                })}
-              </select>
-              <div className="pointer-events-none absolute right-2 top-1/2 -translate-y-1/2 text-white/70">
-                <IconChevronDown size={16} />
-              </div>
+                })
+              )}
             </div>
 
             {updateAvailable &&
@@ -562,6 +594,42 @@ const Launcher: React.FC<{ onLogout?: () => void }> = ({ onLogout }) => {
             ))}
         </div>
       </div>
+
+      {versionToDelete && (
+        <ConfirmModal
+          open={deleteConfirmOpen}
+          title="Delete Version"
+          message={`Are you sure you want to delete ${versionToDelete.build_name ?? `Build-${versionToDelete.build_index}`}?`}
+          confirmText="Delete"
+          cancelText="Cancel"
+          onCancel={() => setDeleteConfirmOpen(false)}
+          onConfirm={async () => {
+            if (!versionToDelete) return;
+
+            setDeleteConfirmOpen(false);
+            const v = versionToDelete;
+            setVersionToDelete(null);
+
+            const result = await window.ipcRenderer.invoke(
+              "delete-installed-version",
+              gameDir,
+              v,
+            );
+
+            if (!result?.success) {
+              alert(result?.error ?? "Failed to delete version");
+              return;
+            }
+
+            const updatedVersions = availableVersions.map((ver) =>
+              ver.build_index === v.build_index && ver.type === v.type
+                ? { ...ver, installed: false }
+                : ver,
+            );
+            setAvailableVersions(updatedVersions);
+          }}
+        />
+      )}
 
       {openNews && (
         <div

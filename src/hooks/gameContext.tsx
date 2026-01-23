@@ -13,6 +13,7 @@ interface GameContextType {
   versionType: VersionType;
   setVersionType: (t: VersionType) => void;
   availableVersions: GameVersion[];
+  setAvailableVersions: (versions: GameVersion[]) => void;
   selectedVersion: number;
   setSelectedVersion: (idx: number) => void;
   updateAvailable: boolean;
@@ -87,6 +88,18 @@ export const GameContextProvider = ({
     },
     [versionType]
   );
+
+  const setAvailableVersions = useCallback(
+    (versions: GameVersion[]) => {
+      if (versionType === "release") {
+        setReleaseVersions(versions);
+      } else {
+        setPreReleaseVersions(versions);
+      }
+    },
+    [versionType]
+  );
+
 
   const dismissUpdateForNow = useCallback(() => {
     setUpdateDismissed(true);
@@ -416,6 +429,7 @@ export const GameContextProvider = ({
         versionType,
         setVersionType,
         availableVersions,
+        setAvailableVersions,
         selectedVersion,
         setSelectedVersion,
         updateAvailable,
